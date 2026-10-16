@@ -8,10 +8,6 @@ on:
         required: true
         type: string
 
-env:
-  # GHCR image names must be lowercase
-  IMAGE: ghcr.io/${{ github.repository_owner }}/new-api
-
 jobs:
   prepare:
     name: Prepare Docker tags
@@ -72,6 +68,10 @@ jobs:
       packages: write
       id-token: write
     steps:
+      - name: Set image name
+        # GHCR image names must be lowercase
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/new-api" >> "$GITHUB_ENV"
+
       - name: Check out branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -138,6 +138,10 @@ jobs:
       packages: write
       id-token: write
     steps:
+      - name: Set image name
+        # GHCR image names must be lowercase
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/new-api" >> "$GITHUB_ENV"
+
       - name: Log in to GHCR
         uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
         with:

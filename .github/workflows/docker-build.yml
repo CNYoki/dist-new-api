@@ -12,10 +12,6 @@ on:
         required: true
         type: string
 
-env:
-  # GHCR image names must be lowercase
-  IMAGE: ghcr.io/${{ github.repository_owner }}/new-api
-
 jobs:
   build_single_arch:
     name: Build & push (${{ matrix.arch }})
@@ -39,6 +35,10 @@ jobs:
       id-token: write
 
     steps:
+      - name: Set image name
+        # GHCR image names must be lowercase
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/new-api" >> "$GITHUB_ENV"
+
       - name: Check out
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -119,6 +119,10 @@ jobs:
       id-token: write
 
     steps:
+      - name: Set image name
+        # GHCR image names must be lowercase
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/new-api" >> "$GITHUB_ENV"
+
       - name: Set version
         run: echo "TAG=${{ needs.build_single_arch.outputs.tag }}" >> $GITHUB_ENV
 
