@@ -53,9 +53,7 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
         tabIndex={0}
         tooltipContent={
           group === BATCH_GROUP
-            ? t(
-                'Keys in the batch group are charged at the batch rate. They can call the API only when the JSON request body includes "batch": true.'
-              )
+            ? t('This group can only be used by batch inference platforms.')
             : group || t('Follow user group')
         }
         tooltipClassName='break-all'

@@ -330,8 +330,7 @@ describe('API keys mutate drawer batch group', () => {
     const createdPayloads: Array<Record<string, unknown>> = []
     installApiFixtures(createdPayloads)
     await renderCreateDrawer()
-    const hint =
-      'Keys in the batch group are charged at the batch rate. They can call the API only when the JSON request body includes "batch": true.'
+    const hint = 'This group can only be used by batch inference platforms.'
     expect(screen.queryByText(hint)).toBeNull()
 
     selectComboboxOption(getControlByLabel('Group'), 'Batch inference group')

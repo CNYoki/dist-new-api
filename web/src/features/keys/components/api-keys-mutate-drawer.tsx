@@ -455,7 +455,7 @@ export function ApiKeysMutateDrawer({
                     {field.value === BATCH_GROUP && (
                       <FormDescription>
                         {t(
-                          'Keys in the batch group are charged at the batch rate. They can call the API only when the JSON request body includes "batch": true.'
+                          'This group can only be used by batch inference platforms.'
                         )}
                       </FormDescription>
                     )}
