@@ -31,6 +31,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
 import { useProfile } from '@/features/profile/hooks/use-profile'
+import { useStatus } from '@/hooks/use-status'
 
 import { AccessTokensCard } from './components/access-tokens-card'
 import { AccountActionCard } from './components/account-action-card'
@@ -43,6 +44,9 @@ import { TwoFACard } from './components/two-fa-card'
 export function Security() {
   const { t } = useTranslation()
   const { profile, loading, refreshProfile, fetchProfile } = useProfile()
+  const { status } = useStatus()
+  // A forced IP recording leaves users nothing to choose.
+  const showPrivacy = status?.force_record_ip_log !== true
 
   let content: ReactNode
   if (loading) {
@@ -125,12 +129,14 @@ export function Security() {
             <PasskeyCard loading={loading} />
             <TwoFACard loading={loading} />
           </div>
-          <section aria-labelledby='security-privacy' className='space-y-4'>
-            <h3 id='security-privacy' className='text-sm font-semibold'>
-              {t('Privacy')}
-            </h3>
-            <PrivacyCard profile={profile} onUpdate={refreshProfile} />
-          </section>
+          {showPrivacy && (
+            <section aria-labelledby='security-privacy' className='space-y-4'>
+              <h3 id='security-privacy' className='text-sm font-semibold'>
+                {t('Privacy')}
+              </h3>
+              <PrivacyCard profile={profile} onUpdate={refreshProfile} />
+            </section>
+          )}
         </aside>
       </div>
     )

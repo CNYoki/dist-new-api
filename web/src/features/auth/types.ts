@@ -183,6 +183,8 @@ export interface SystemStatus {
   password_register_enabled?: boolean
   custom_oauth_providers?: CustomOAuthProviderInfo[]
   log_export_enabled?: boolean
+  /** The administrator records every user's log IP; users cannot opt out. */
+  force_record_ip_log?: boolean
   log_max_range_days?: number
   [key: string]: unknown
 }

@@ -111,7 +111,10 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-async function renderPage(path = '/security') {
+async function renderPage(
+  path = '/security',
+  statusOverrides: Record<string, unknown> = {}
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -130,6 +133,7 @@ async function renderPage(path = '/security') {
         scopes: 'openid',
       },
     ],
+    ...statusOverrides,
   })
   const root = createRootRoute()
   const security = createRoute({
@@ -203,6 +207,21 @@ describe('security page migration', () => {
         'button',
         { name: 'Delete Account' }
       )
+    ).toBeVisible()
+  })
+
+  it('hides the privacy section when the administrator forces IP recording', async () => {
+    await renderPage('/security', { force_record_ip_log: true })
+    await screen.findByRole('region', { name: 'Login & Authentication' })
+
+    expect(
+      screen.queryByRole('region', { name: 'Privacy' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('switch', { name: 'Record IP Address' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('complementary', { name: 'Security verification' })
     ).toBeVisible()
   })
 
