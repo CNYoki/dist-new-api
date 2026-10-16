@@ -525,6 +525,27 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 	}
 }
 
+// batchRelayRoutes are the JSON relay routes a batch group key may call with
+// "batch": true in the body. Multipart uploads, WebSockets and async tasks are
+// not among them.
+var batchRelayRoutes = map[string]bool{
+	"/v1/messages":                  true,
+	"/v1/completions":               true,
+	"/v1/chat/completions":          true,
+	"/v1/responses":                 true,
+	"/v1/responses/compact":         true,
+	"/v1/alpha/search":              true,
+	"/v1/images/generations":        true,
+	"/v1/images/edits":              true,
+	"/v1/embeddings":                true,
+	"/v1/engines/:model/embeddings": true,
+	"/v1/audio/speech":              true,
+	"/v1/rerank":                    true,
+	"/v1/moderations":               true,
+	"/v1/models/*path":              true,
+	"/v1beta/models/*path":          true,
+}
+
 // batchModelListRoutes are the model list routes open to batch group keys.
 var batchModelListRoutes = map[string]bool{
 	"/v1/models":            true,
@@ -628,14 +649,23 @@ func TokenAuth() func(c *gin.Context) {
 
 		userGroup := userCache.Group
 		tokenGroup := token.Group
-		// Batch keys may only list the models they can be charged for; every
-		// other relay route rejects them. The list reads the owner's own groups.
+		// A batch key may list the models it can be charged for, and may call a
+		// JSON relay route whose body opts in with "batch": true; every other
+		// request is rejected. Both read the owner's own groups.
 		batchModelList := tokenGroup == constant.BatchGroup && c.Request.Method == http.MethodGet && batchModelListRoutes[c.FullPath()]
-		if !batchModelList && (tokenGroup == constant.BatchGroup || tokenGroup == "" && userGroup == constant.BatchGroup) {
+		batchRelay := false
+		if tokenGroup == constant.BatchGroup && c.Request.Method == http.MethodPost && batchRelayRoutes[c.FullPath()] && service.CanUseBatchGroup(userGroup) {
+			batchRelay, err = service.ConsumeBatchRelayMarker(c)
+			if err != nil {
+				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
+				return
+			}
+		}
+		if !batchModelList && !batchRelay && (tokenGroup == constant.BatchGroup || tokenGroup == "" && userGroup == constant.BatchGroup) {
 			abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgAuthTokenBatchGroupRelay, map[string]any{"Group": constant.BatchGroup}), types.ErrorCodeAccessDenied)
 			return
 		}
-		if tokenGroup != "" && !batchModelList {
+		if tokenGroup != "" && !batchModelList && !batchRelay {
 			// check common.UserUsableGroups[userGroup]
 			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgAuthTokenGroupForbidden, map[string]any{"Group": tokenGroup}))
@@ -655,6 +685,13 @@ func TokenAuth() func(c *gin.Context) {
 		err = SetupContextForToken(c, token, parts...)
 		if err != nil {
 			return
+		}
+		if batchRelay {
+			// Route like an Auto key over the owner's groups, retrying across them.
+			common.SetContextKey(c, constant.ContextKeyBatchRelay, true)
+			common.SetContextKey(c, constant.ContextKeyTokenGroup, "auto")
+			common.SetContextKey(c, constant.ContextKeyUsingGroup, "auto")
+			common.SetContextKey(c, constant.ContextKeyTokenCrossGroupRetry, true)
 		}
 		c.Next()
 	}

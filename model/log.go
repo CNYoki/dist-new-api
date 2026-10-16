@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 
@@ -286,8 +287,23 @@ func shouldRecordLogIp(userId int) bool {
 	return err == nil && setting.RecordIpLog
 }
 
+// batchRelayLogGroup files a batch relay request's log under the batch group
+// with the batch inference marker, keeping the group that served it.
+func batchRelayLogGroup(c *gin.Context, group string, other *LogOther) string {
+	if c == nil || !common.GetContextKeyBool(c, constant.ContextKeyBatchRelay) {
+		return group
+	}
+	if other != nil {
+		other.SetPublic("batch_billing", true)
+		other.SetPublic("batch_billing_mode", "relay")
+		other.SetPublic("batch_route_group", group)
+	}
+	return constant.BatchGroup
+}
+
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other *LogOther) {
+	group = batchRelayLogGroup(c, group, other)
 	logger.LogInfo(c, common.LogText("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, common.LocalLogPreview(content)))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
@@ -351,6 +367,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	createdAt := common.GetTimestamp()
 	other := params.Other
+	params.Group = batchRelayLogGroup(c, params.Group, other)
 	content := other.setContent(params.Content)
 	otherStr := other.JSONString()
 	needRecordIp := shouldRecordLogIp(userId)

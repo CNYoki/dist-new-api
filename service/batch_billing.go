@@ -167,10 +167,10 @@ func ChargeBatchBilling(c *gin.Context, relayInfo *relaycommon.RelayInfo, charge
 		quota = settlement.summary.Quota
 	}
 	if relayInfo.QuotaClamp != nil {
-		return nil, newBatchBillingError(http.StatusBadRequest, "quota_out_of_range", "The charge must be positive and within the supported quota range")
+		return nil, newBatchBillingError(http.StatusBadRequest, "quota_out_of_range", "The charge must be zero or positive and within the supported quota range")
 	}
 	if quota < 0 {
-		return nil, newBatchBillingError(http.StatusBadRequest, "quota_out_of_range", "The charge must be positive and within the supported quota range")
+		return nil, newBatchBillingError(http.StatusBadRequest, "quota_out_of_range", "The charge must be zero or positive and within the supported quota range")
 	}
 
 	record := &model.BatchBillingRecord{

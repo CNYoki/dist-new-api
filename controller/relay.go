@@ -387,6 +387,18 @@ func RelayTaskPluginEndpoint(c *gin.Context, fallback gin.HandlerFunc) {
 		fallback(c)
 		return
 	}
+	// Plugin endpoints settle as tasks priced by the routed group, so they
+	// cannot honour the batch ratio.
+	if common.GetContextKeyBool(c, constant.ContextKeyBatchRelay) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": gin.H{
+				"message": i18n.T(c, i18n.MsgBatchRelayUnsupported, map[string]any{"Model": c.GetString(string(constant.ContextKeyOriginalModel))}),
+				"type":    "new_api_error",
+				"code":    "batch_relay_unsupported",
+			},
+		})
+		return
+	}
 	pinned, ok := pinnedValue.(pluginruntime.PinnedEndpoint)
 	if !ok || pinned.Plugin == nil || pinned.Generation == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
