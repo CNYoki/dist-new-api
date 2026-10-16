@@ -3626,6 +3626,7 @@
     "Maximum number of channels tested at the same time (1-32)": "Максимальное число одновременно проверяемых каналов (1–32)",
     "Maximum number of tokens each user can create. Default 1000. Setting too large may affect performance.": "Максимальное количество токенов, которое может создать каждый пользователь. По умолчанию 1000. Слишком большое значение может повлиять на производительность.",
     "Maximum number of tokens in the response": "Максимальное число токенов в ответе",
+    "Model {{model}} is not available to this user": "Модель {{model}} недоступна для этого пользователя",
     "Model fixed price {{model_price}}, group ratio {{group_ratio}}, action {{action}}": "Фиксированная цена модели {{model_price}}, коэффициент группы {{group_ratio}}, действие {{action}}",
     "Model fixed price {{model_price}}, group ratio {{group_ratio}}, action {{action}}, ID {{id}}": "Фиксированная цена модели {{model_price}}, коэффициент группы {{group_ratio}}, действие {{action}}, ID {{id}}",
     "Maximum quota amount awarded for check-in": "Максимальная сумма квоты, присуждаемая за регистрацию",

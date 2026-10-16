@@ -204,6 +204,14 @@ func getModelListGroups(c *gin.Context) (modelListGroups, error) {
 		}, nil
 	}
 
+	if tokenGroup == constant.BatchGroup {
+		return modelListGroups{
+			userGroup:   userGroup,
+			tokenGroup:  tokenGroup,
+			ownerGroups: service.BatchBillableGroups(userGroup),
+		}, nil
+	}
+
 	group := userGroup
 	if tokenGroup != "" {
 		group = tokenGroup

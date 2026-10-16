@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -157,15 +158,15 @@ export const protocols = {openai_responses: {
 
 func TestTokenModelLimitAllowsLegacyAliasAndModifierVariant(t *testing.T) {
 	aliasOnly := map[string]bool{"claude-3-7-sonnet-thinking": true}
-	assert.True(t, TokenModelLimitAllows(aliasOnly, "claude-3-7-sonnet-thinking"))
-	assert.False(t, TokenModelLimitAllows(aliasOnly, "claude-3-7-sonnet"))
+	assert.True(t, service.TokenModelLimitAllows(aliasOnly, "claude-3-7-sonnet-thinking"))
+	assert.False(t, service.TokenModelLimitAllows(aliasOnly, "claude-3-7-sonnet"))
 
 	baseOnly := map[string]bool{"claude-3-7-sonnet": true}
-	assert.True(t, TokenModelLimitAllows(baseOnly, "claude-3-7-sonnet@thinking:on"))
-	assert.True(t, TokenModelLimitAllows(baseOnly, "claude-3-7-sonnet-thinking"))
+	assert.True(t, service.TokenModelLimitAllows(baseOnly, "claude-3-7-sonnet@thinking:on"))
+	assert.True(t, service.TokenModelLimitAllows(baseOnly, "claude-3-7-sonnet-thinking"))
 
 	wildcard := map[string]bool{"gemini-2.5-flash-thinking-*": true}
-	assert.True(t, TokenModelLimitAllows(wildcard, "gemini-2.5-flash-thinking-8192"))
+	assert.True(t, service.TokenModelLimitAllows(wildcard, "gemini-2.5-flash-thinking-8192"))
 }
 
 func TestTokenModelLimitAllowsExemptAtNameByFullName(t *testing.T) {
@@ -175,10 +176,10 @@ func TestTokenModelLimitAllowsExemptAtNameByFullName(t *testing.T) {
 	settings.ThinkingModelBlacklist = append(original, "re:.*@sha256:.*")
 
 	fullOnly := map[string]bool{"opaque@sha256:deadbeef": true}
-	assert.True(t, TokenModelLimitAllows(fullOnly, "opaque@sha256:deadbeef"))
+	assert.True(t, service.TokenModelLimitAllows(fullOnly, "opaque@sha256:deadbeef"))
 
 	baseOnly := map[string]bool{"opaque": true}
-	assert.False(t, TokenModelLimitAllows(baseOnly, "opaque@sha256:deadbeef"))
+	assert.False(t, service.TokenModelLimitAllows(baseOnly, "opaque@sha256:deadbeef"))
 }
 
 func TestDistributeHidesTaskPluginDetailsButLogsDiagnostics(t *testing.T) {

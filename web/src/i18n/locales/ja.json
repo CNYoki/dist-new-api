@@ -3626,6 +3626,7 @@
     "Maximum number of channels tested at the same time (1-32)": "同時にテストするチャンネルの最大数（1～32）",
     "Maximum number of tokens each user can create. Default 1000. Setting too large may affect performance.": "各ユーザーが作成できる最大トークン数。デフォルトは 1000。大きすぎる値はパフォーマンスに影響を与える可能性があります。",
     "Maximum number of tokens in the response": "レスポンスの最大トークン数",
+    "Model {{model}} is not available to this user": "このユーザーはモデル {{model}} を利用できません",
     "Model fixed price {{model_price}}, group ratio {{group_ratio}}, action {{action}}": "モデル固定価格 {{model_price}}、グループ倍率 {{group_ratio}}、操作 {{action}}",
     "Model fixed price {{model_price}}, group ratio {{group_ratio}}, action {{action}}, ID {{id}}": "モデル固定価格 {{model_price}}、グループ倍率 {{group_ratio}}、操作 {{action}}、ID {{id}}",
     "Maximum quota amount awarded for check-in": "チェックインで付与される最大クォータ量",

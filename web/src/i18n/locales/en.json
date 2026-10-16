@@ -3626,6 +3626,7 @@
     "Maximum number of channels tested at the same time (1-32)": "Maximum number of channels tested at the same time (1-32)",
     "Maximum number of tokens each user can create. Default 1000. Setting too large may affect performance.": "Maximum number of tokens each user can create. Default 1000. Setting too large may affect performance.",
     "Maximum number of tokens in the response": "Maximum number of tokens in the response",
+    "Model {{model}} is not available to this user": "Model {{model}} is not available to this user",
     "Model fixed price {{model_price}}, group ratio {{group_ratio}}, action {{action}}": "Model fixed price {{model_price}}, group ratio {{group_ratio}}, action {{action}}",
     "Model fixed price {{model_price}}, group ratio {{group_ratio}}, action {{action}}, ID {{id}}": "Model fixed price {{model_price}}, group ratio {{group_ratio}}, action {{action}}, ID {{id}}",
     "Maximum quota amount awarded for check-in": "Maximum quota amount awarded for check-in",
