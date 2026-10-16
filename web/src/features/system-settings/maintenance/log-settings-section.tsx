@@ -50,6 +50,7 @@ import { ServerLogFiles } from './server-log-files'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
+  ForceRecordIpLogEnabled: z.boolean(),
   log_setting: z.object({
     user_export_enabled: z.boolean(),
     max_range_days: z.number().int().min(1),
@@ -61,6 +62,7 @@ type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 type LogSettingsSectionProps = {
   defaultValues: {
     LogConsumeEnabled: boolean
+    ForceRecordIpLogEnabled: boolean
     'log_setting.user_export_enabled': boolean
     'log_setting.max_range_days': number
   }
@@ -74,6 +76,7 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
   const formDefaults = useMemo<LogSettingsFormValues>(
     () => ({
       LogConsumeEnabled: props.defaultValues.LogConsumeEnabled,
+      ForceRecordIpLogEnabled: props.defaultValues.ForceRecordIpLogEnabled,
       log_setting: {
         user_export_enabled:
           props.defaultValues['log_setting.user_export_enabled'],
@@ -94,6 +97,7 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
   const onSubmit = async (values: LogSettingsFormValues) => {
     const changes = [
       ['LogConsumeEnabled', values.LogConsumeEnabled],
+      ['ForceRecordIpLogEnabled', values.ForceRecordIpLogEnabled],
       [
         'log_setting.user_export_enabled',
         values.log_setting.user_export_enabled,
@@ -133,6 +137,29 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
                     <FormDescription>
                       {t(
                         'Track per-request consumption to power usage analytics. Keeping this on increases database writes.'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </SettingsSwitchItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='ForceRecordIpLogEnabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Force recording IP addresses')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        "Record the client IP on every user's usage and error logs. Users can no longer turn off IP recording on their security page."
                       )}
                     </FormDescription>
                   </SettingsSwitchContent>

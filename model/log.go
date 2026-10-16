@@ -275,6 +275,17 @@ func RecordTopupLog(userId int, content *common.Message, callerIp string, paymen
 	}
 }
 
+// shouldRecordLogIp reports whether usage and error logs of userId record the
+// client IP: always when the administrator forces it, otherwise per the
+// user's record_ip_log setting.
+func shouldRecordLogIp(userId int) bool {
+	if common.ForceRecordIpLogEnabled {
+		return true
+	}
+	setting, err := GetUserSetting(userId, false)
+	return err == nil && setting.RecordIpLog
+}
+
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other *LogOther) {
 	logger.LogInfo(c, common.LogText("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, common.LocalLogPreview(content)))
@@ -282,13 +293,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	otherStr := other.JSONString()
-	// 判断是否需要记录 IP
-	needRecordIp := false
-	if settingMap, err := GetUserSetting(userId, false); err == nil {
-		if settingMap.RecordIpLog {
-			needRecordIp = true
-		}
-	}
+	needRecordIp := shouldRecordLogIp(userId)
 	log := &Log{
 		UserId:           userId,
 		Username:         username,
@@ -348,13 +353,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	other := params.Other
 	content := other.setContent(params.Content)
 	otherStr := other.JSONString()
-	// 判断是否需要记录 IP
-	needRecordIp := false
-	if settingMap, err := GetUserSetting(userId, false); err == nil {
-		if settingMap.RecordIpLog {
-			needRecordIp = true
-		}
-	}
+	needRecordIp := shouldRecordLogIp(userId)
 	log := &Log{
 		UserId:           userId,
 		Username:         username,

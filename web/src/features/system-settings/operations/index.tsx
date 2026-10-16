@@ -44,6 +44,7 @@ const defaultOperationsSettings: OperationsSettings = {
   WorkerValidKey: '',
   WorkerAllowHttpImageRequestEnabled: false,
   LogConsumeEnabled: false,
+  ForceRecordIpLogEnabled: false,
   'log_setting.user_export_enabled': true,
   'log_setting.max_range_days': 365,
   'performance_setting.disk_cache_enabled': false,

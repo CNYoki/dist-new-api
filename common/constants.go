@@ -98,6 +98,10 @@ var MemoryCacheEnabled bool
 
 var LogConsumeEnabled = true
 
+// ForceRecordIpLogEnabled records the client IP on every user's usage and
+// error logs, overriding the user's own record_ip_log setting.
+var ForceRecordIpLogEnabled = false
+
 var TLSInsecureSkipVerify bool
 var InsecureTLSConfig = &tls.Config{InsecureSkipVerify: true}
 
