@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,6 +17,9 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -151,7 +155,27 @@ func TestBatchBilling(t *testing.T) {
 			router.Use(middleware.RequestId())
 			router.POST("/api/batch/billing", middleware.AdminAuth(), ChargeBatchBilling)
 			router.GET("/v1/models", middleware.TokenAuth(), func(c *gin.Context) { ListModels(c, constant.ChannelTypeOpenAI) })
-			router.POST("/v1/chat/completions", middleware.TokenAuth(), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+			// The relay stand-in records what a batch relay hands to the relay
+			// pipeline: the forwarded body, the routing groups, the price ratio
+			// and the group its consume log is filed under.
+			var relayed struct {
+				body, usingGroup, routedGroup string
+				autoGroups                    []string
+				groupRatio                    float64
+			}
+			router.POST("/v1/chat/completions", middleware.TokenAuth(), func(c *gin.Context) {
+				body, err := io.ReadAll(c.Request.Body)
+				require.NoError(t, err)
+				relayed.body = string(body)
+				relayed.usingGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+				relayed.autoGroups = service.GetRequestAutoGroups(c, common.GetContextKeyString(c, constant.ContextKeyUserGroup))
+				c.Set("auto_group", "default")
+				info := &relaycommon.RelayInfo{UserGroup: "default", UsingGroup: relayed.usingGroup}
+				relayed.groupRatio = helper.HandleGroupRatio(c, info).GroupRatio
+				relayed.routedGroup = info.UsingGroup
+				model.RecordConsumeLog(c, admin.Id, model.RecordConsumeLogParams{ModelName: "batch-test-model", Quota: 1, Group: info.UsingGroup, Other: model.NewLogOther()})
+				c.Status(http.StatusNoContent)
+			})
 			charge := func(body string) (int, batchBillingTestResponse) {
 				response := httptest.NewRecorder()
 				request := httptest.NewRequest(http.MethodPost, "/api/batch/billing", bytes.NewBufferString(body))
@@ -169,7 +193,7 @@ func TestBatchBilling(t *testing.T) {
 				return user.Quota, token.RemainQuota
 			}
 
-			t.Run("batch keys list their billable models but cannot relay", func(t *testing.T) {
+			t.Run("batch keys list their billable models and relay only with the batch marker", func(t *testing.T) {
 				listModels := func(key string) (int, []string) {
 					response := httptest.NewRecorder()
 					request := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
@@ -195,13 +219,37 @@ func TestBatchBilling(t *testing.T) {
 				assert.Equal(t, http.StatusOK, status)
 				assert.Equal(t, []string{"batch-test-model"}, ids)
 
-				for key, want := range map[string]int{batchKey.Key: http.StatusForbidden, defaultKey.Key: http.StatusNoContent} {
+				relay := func(key, contentType, body string) int {
 					response := httptest.NewRecorder()
-					request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewBufferString(`{}`))
+					request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewBufferString(body))
 					request.Header.Set("Authorization", "Bearer sk-"+key)
+					request.Header.Set("Content-Type", contentType)
 					router.ServeHTTP(response, request)
-					assert.Equal(t, want, response.Code, response.Body.String())
+					return response.Code
 				}
+				for _, body := range []string{`{}`, `{"model":"batch-test-model","batch":false}`, `{"model":"batch-test-model","batch":"true"}`, `{"model":"batch-test-model","extra":{"batch":true}}`} {
+					assert.Equal(t, http.StatusForbidden, relay(batchKey.Key, "application/json", body), body)
+				}
+				assert.Equal(t, http.StatusForbidden, relay(batchKey.Key, "multipart/form-data; boundary=x", "--x\r\nContent-Disposition: form-data; name=\"batch\"\r\n\r\ntrue\r\n--x--\r\n"))
+
+				require.Equal(t, http.StatusNoContent, relay(batchKey.Key, "application/json", `{"model":"batch-test-model","batch":true,"messages":[]}`))
+				assert.JSONEq(t, `{"model":"batch-test-model","messages":[]}`, relayed.body, "the marker never reaches the provider")
+				assert.Equal(t, "auto", relayed.usingGroup)
+				assert.Equal(t, []string{"default"}, relayed.autoGroups)
+				assert.Equal(t, "default", relayed.routedGroup)
+				assert.EqualValues(t, 0.5, relayed.groupRatio, "priced at the batch ratio")
+				var relayLog model.Log
+				require.NoError(t, db.Where("user_id = ? AND type = ?", admin.Id, model.LogTypeConsume).Last(&relayLog).Error)
+				assert.Equal(t, constant.BatchGroup, relayLog.Group)
+				var other map[string]any
+				require.NoError(t, common.UnmarshalJsonStr(relayLog.Other, &other))
+				assert.Equal(t, true, other["batch_billing"])
+				assert.Equal(t, "default", other["batch_route_group"])
+
+				// An ordinary key relays as before and is priced by its own group.
+				require.Equal(t, http.StatusNoContent, relay(defaultKey.Key, "application/json", `{"model":"batch-test-model","batch":true}`))
+				assert.Equal(t, "default", relayed.usingGroup)
+				assert.EqualValues(t, 1, relayed.groupRatio)
 			})
 
 			t.Run("batch group is offered only when editing keys", func(t *testing.T) {
@@ -296,6 +344,21 @@ func TestBatchBilling(t *testing.T) {
 				status, result = charge(`{"key":"` + batchKey.Key + `","request_id":"job-3","model_name":"batch-test-model","amount":"0.002"}`)
 				require.Equal(t, http.StatusOK, status, result.Message)
 				assert.Equal(t, common.QuotaFromFloat(0.002*common.QuotaPerUnit), result.Data.Quota)
+
+				// A zero charge is accepted and logged without moving funds.
+				userBefore, tokenBefore := balances()
+				for i, body := range []string{`"quota":0`, `"amount":"0"`} {
+					status, result = charge(`{"key":"` + batchKey.Key + `","request_id":"job-zero-` + strconv.Itoa(i) + `","model_name":"batch-test-model",` + body + `}`)
+					require.Equal(t, http.StatusOK, status, result.Message)
+					assert.True(t, result.Success)
+					assert.Zero(t, result.Data.Quota)
+				}
+				userAfter, tokenAfter := balances()
+				assert.Equal(t, userBefore, userAfter)
+				assert.Equal(t, tokenBefore, tokenAfter)
+				var zeroLogs int64
+				require.NoError(t, db.Model(&model.Log{}).Where("user_id = ? AND type = ? AND quota = 0", customer.Id, model.LogTypeConsume).Count(&zeroLogs).Error)
+				assert.EqualValues(t, 2, zeroLogs)
 			})
 
 			t.Run("rejections move no funds", func(t *testing.T) {
@@ -315,6 +378,7 @@ func TestBatchBilling(t *testing.T) {
 					{`{"key":"` + batchKey.Key + `","request_id":"job-9","model_name":"batch-test-model","prompt_tokens":-1,"completion_tokens":5}`, http.StatusBadRequest, "invalid_request"},
 					{`{"key":"` + batchKey.Key + `","request_id":"job-10","model_name":"batch-test-model","quota":2147483648}`, http.StatusBadRequest, "quota_out_of_range"},
 					{`{"key":"` + batchKey.Key + `","request_id":"job-11","model_name":"batch-test-model","amount":"-1"}`, http.StatusBadRequest, "quota_out_of_range"},
+					{`{"key":"` + batchKey.Key + `","request_id":"job-15","model_name":"batch-test-model","quota":-1}`, http.StatusBadRequest, "quota_out_of_range"},
 					{`{"key":"` + batchKey.Key + `","request_id":"job-1","model_name":"other-model","quota":1}`, http.StatusConflict, "request_id_conflict"},
 				} {
 					status, result := charge(tc.body)

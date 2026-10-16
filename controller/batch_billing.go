@@ -84,15 +84,15 @@ func ChargeBatchBilling(c *gin.Context) {
 		batchBillingReject(c, http.StatusBadRequest, "invalid_request", "Provide exactly one of token usage, quota, or amount")
 		return
 	case req.Quota != nil:
-		if *req.Quota <= 0 || *req.Quota > common.MaxQuota {
-			batchBillingReject(c, http.StatusBadRequest, "quota_out_of_range", "The charge must be positive and within the supported quota range")
+		if *req.Quota < 0 || *req.Quota > common.MaxQuota {
+			batchBillingReject(c, http.StatusBadRequest, "quota_out_of_range", "The charge must be zero or positive and within the supported quota range")
 			return
 		}
 		charge.Quota = *req.Quota
 	case req.Amount != nil:
 		quota, err := common.QuotaFromDecimalStrict(req.Amount.Mul(decimal.NewFromFloat(common.QuotaPerUnit)))
-		if err != nil || quota <= 0 || !req.Amount.IsPositive() {
-			batchBillingReject(c, http.StatusBadRequest, "quota_out_of_range", "The charge must be positive and within the supported quota range")
+		if err != nil || quota < 0 || req.Amount.IsNegative() {
+			batchBillingReject(c, http.StatusBadRequest, "quota_out_of_range", "The charge must be zero or positive and within the supported quota range")
 			return
 		}
 		charge.Quota = quota

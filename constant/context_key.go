@@ -21,6 +21,9 @@ const (
 	ContextKeyTokenModelLimit        ContextKey = "token_model_limit"
 	ContextKeyTokenCrossGroupRetry   ContextKey = "token_cross_group_retry"
 	ContextKeyTokenAutoGroups        ContextKey = "token_auto_groups"
+	// ContextKeyBatchRelay marks a batch group key's relay request that opted
+	// in with "batch": true; it routes over the owner's groups at the batch ratio.
+	ContextKeyBatchRelay ContextKey = "batch_relay"
 
 	/* channel related keys */
 	ContextKeyChannelId                ContextKey = "channel_id"

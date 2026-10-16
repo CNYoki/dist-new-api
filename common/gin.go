@@ -107,6 +107,21 @@ func GetBodyStorage(c *gin.Context) (BodyStorage, error) {
 	return bs, nil
 }
 
+// ReplaceRequestBody swaps the cached request body for data, so every later
+// reader (handlers, adaptors, passthrough) sees the replacement.
+func ReplaceRequestBody(c *gin.Context, data []byte) error {
+	storage, err := CreateBodyStorage(data)
+	if err != nil {
+		return err
+	}
+	CleanupBodyStorage(c)
+	c.Set(KeyBodyStorage, storage)
+	c.Set(KeyRequestBody, nil)
+	c.Request.Body = io.NopCloser(storage)
+	c.Request.ContentLength = int64(len(data))
+	return nil
+}
+
 // CleanupBodyStorage 清理请求体存储（应在请求结束时调用）
 func CleanupBodyStorage(c *gin.Context) {
 	if storage, exists := c.Get(KeyBodyStorage); exists && storage != nil {

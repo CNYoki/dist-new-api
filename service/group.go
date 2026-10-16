@@ -67,17 +67,22 @@ func CanUseBatchGroup(userGroup string) bool {
 }
 
 // BatchBillableGroups lists the groups whose models a batch group API key may
-// be charged for and lists through /v1/models: the user's own usable groups,
-// never auto or batch. The batch group itself has no channels.
+// be charged for, list through /v1/models and relay to with "batch": true:
+// the user's own usable groups, never auto or batch (the batch group itself
+// has no channels). A batch relay tries them in this order: the user's own
+// group first, then the rest by name.
 func BatchBillableGroups(userGroup string) []string {
 	groups := make([]string, 0)
 	for group := range GetUserUsableGroups(userGroup) {
-		if group == "auto" || group == constant.BatchGroup || !ratio_setting.ContainsGroupRatio(group) {
+		if group == "auto" || group == constant.BatchGroup || group == userGroup || !ratio_setting.ContainsGroupRatio(group) {
 			continue
 		}
 		groups = append(groups, group)
 	}
 	slices.Sort(groups)
+	if userGroup != "auto" && userGroup != constant.BatchGroup && ratio_setting.ContainsGroupRatio(userGroup) {
+		groups = append([]string{userGroup}, groups...)
+	}
 	return groups
 }
 
@@ -121,9 +126,13 @@ func FilterUserTokenAutoGroups(userGroup string, groups []string) []string {
 }
 
 // GetRequestAutoGroups resolves the ordered Auto groups for the current token.
+// A batch relay request routes over BatchBillableGroups instead.
 // The absence of the context value means that the token inherits the complete
 // global Auto list; a present (even empty) value is an explicit token snapshot.
 func GetRequestAutoGroups(c *gin.Context, userGroup string) []string {
+	if common.GetContextKeyBool(c, constant.ContextKeyBatchRelay) {
+		return BatchBillableGroups(userGroup)
+	}
 	value, ok := common.GetContextKey(c, constant.ContextKeyTokenAutoGroups)
 	if !ok {
 		return GetUserAutoGroup(userGroup)
