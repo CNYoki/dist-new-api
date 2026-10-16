@@ -1,12 +1,20 @@
 name: Publish Docker image (manual branch)
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       branch:
         description: "Branch name to build (e.g. alpha, nightly)"
         required: true
         type: string
+
+# A newer push to the same branch supersedes an image still being built.
+concurrency:
+  group: docker-image-${{ inputs.branch || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   prepare:
@@ -24,12 +32,12 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
-          ref: ${{ inputs.branch }}
+          ref: ${{ inputs.branch || github.ref_name }}
 
       - name: Resolve Docker tags
         id: version
         env:
-          BRANCH_NAME: ${{ inputs.branch }}
+          BRANCH_NAME: ${{ inputs.branch || github.ref_name }}
         run: |
           TAG_PREFIX=$(printf '%s' "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_.-]+/-/g; s/^[.-]+//; s/[.-]+$//')
           TAG_PREFIX=${TAG_PREFIX:0:105}
@@ -93,9 +101,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (labels)
+      - name: Extract metadata (labels & annotations)
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        env:
+          # Provenance and SBOM make every pushed tag an image index. GitHub
+          # links the package to this repository through the index's
+          # org.opencontainers.image.source annotation, not the image label.
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
         with:
           images: ${{ env.IMAGE }}
 
@@ -110,6 +123,7 @@ jobs:
             ${{ env.IMAGE }}:${{ needs.prepare.outputs.tag_prefix }}-${{ matrix.arch }}
             ${{ env.IMAGE }}:${{ needs.prepare.outputs.version }}-${{ matrix.arch }}
           labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: mode=max
@@ -153,6 +167,8 @@ jobs:
         run: |
           docker buildx imagetools create \
             -t ${{ env.IMAGE }}:${{ needs.prepare.outputs.tag_prefix }} \
+            --annotation "index:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            --annotation "index:org.opencontainers.image.revision=${{ needs.prepare.outputs.sha }}" \
             ${{ env.IMAGE }}:${{ needs.prepare.outputs.tag_prefix }}-amd64 \
             ${{ env.IMAGE }}:${{ needs.prepare.outputs.tag_prefix }}-arm64
 
@@ -160,6 +176,8 @@ jobs:
         run: |
           docker buildx imagetools create \
             -t ${{ env.IMAGE }}:${{ needs.prepare.outputs.version }} \
+            --annotation "index:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            --annotation "index:org.opencontainers.image.revision=${{ needs.prepare.outputs.sha }}" \
             ${{ env.IMAGE }}:${{ needs.prepare.outputs.version }}-amd64 \
             ${{ env.IMAGE }}:${{ needs.prepare.outputs.version }}-arm64
 
