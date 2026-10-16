@@ -1,6 +1,7 @@
 package service
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -63,6 +64,21 @@ func CanUseBatchGroup(userGroup string) bool {
 	}
 	_, removed := specialSettings["-:"+constant.BatchGroup]
 	return !removed
+}
+
+// BatchBillableGroups lists the groups whose models a batch group API key may
+// be charged for and lists through /v1/models: the user's own usable groups,
+// never auto or batch. The batch group itself has no channels.
+func BatchBillableGroups(userGroup string) []string {
+	groups := make([]string, 0)
+	for group := range GetUserUsableGroups(userGroup) {
+		if group == "auto" || group == constant.BatchGroup || !ratio_setting.ContainsGroupRatio(group) {
+			continue
+		}
+		groups = append(groups, group)
+	}
+	slices.Sort(groups)
+	return groups
 }
 
 // GetUserAutoGroup 根据用户分组获取自动分组设置
@@ -143,4 +159,18 @@ func GetUserGroupRatio(userGroup, group string) float64 {
 		return ratio
 	}
 	return ratio_setting.GetGroupRatio(group)
+}
+
+// TokenModelLimitAllows reports whether a token model-limit map authorizes
+// model. Exact name, wildcard-normalized name, and routing-normalized name
+// (modifiers and legacy aliases stripped) are all accepted. The Responses
+// WebSocket relay shares this rule so both transports admit the same names.
+func TokenModelLimitAllows(limit map[string]bool, model string) bool {
+	if limit[model] {
+		return true
+	}
+	if formatted := ratio_setting.FormatMatchingModelName(model); limit[formatted] {
+		return true
+	}
+	return limit[ratio_setting.RoutingMatchModelName(model)]
 }

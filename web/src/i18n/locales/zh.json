@@ -3626,6 +3626,7 @@
     "Maximum number of channels tested at the same time (1-32)": "同时测试的最大渠道数（1-32）",
     "Maximum number of tokens each user can create. Default 1000. Setting too large may affect performance.": "每个用户可创建的最大令牌数量。默认 1000。设置过大可能会影响性能。",
     "Maximum number of tokens in the response": "响应中最大 token 数",
+    "Model {{model}} is not available to this user": "该用户无法使用模型 {{model}}",
     "Model fixed price {{model_price}}, group ratio {{group_ratio}}, action {{action}}": "模型固定价格 {{model_price}}，分组倍率 {{group_ratio}}，操作 {{action}}",
     "Model fixed price {{model_price}}, group ratio {{group_ratio}}, action {{action}}, ID {{id}}": "模型固定价格 {{model_price}}，分组倍率 {{group_ratio}}，操作 {{action}}，ID {{id}}",
     "Maximum quota amount awarded for check-in": "签到奖励的最大额度",

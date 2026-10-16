@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -90,7 +92,7 @@ func PrepareBatchBilling(c *gin.Context, key string, modelName string) (*gin.Con
 	if token.Group != constant.BatchGroup {
 		return nil, nil, newBatchBillingError(http.StatusForbidden, "key_not_batch", "API key is not in the batch group")
 	}
-	if token.ModelLimitsEnabled && !token.GetModelLimitsMap()[modelName] {
+	if token.ModelLimitsEnabled && !TokenModelLimitAllows(token.GetModelLimitsMap(), modelName) {
 		return nil, nil, newBatchBillingError(http.StatusForbidden, "model_not_allowed", "This API key cannot use model {{model}}", map[string]any{"model": modelName})
 	}
 	user, err := model.GetUserCache(token.UserId)
@@ -102,6 +104,12 @@ func PrepareBatchBilling(c *gin.Context, key string, modelName string) (*gin.Con
 	}
 	if !CanUseBatchGroup(user.Group) {
 		return nil, nil, newBatchBillingError(http.StatusForbidden, "batch_group_unavailable", "The batch group is not available for this user")
+	}
+	// A batch key bills only the models its owner could call through the relay,
+	// matched the way channel selection matches them.
+	enabledModels := GetGroupsEnabledModels(BatchBillableGroups(user.Group))
+	if !slices.Contains(enabledModels, modelName) && !slices.Contains(enabledModels, ratio_setting.RoutingMatchModelName(modelName)) {
+		return nil, nil, newBatchBillingError(http.StatusForbidden, "model_unavailable", "Model {{model}} is not available to this user", map[string]any{"model": modelName})
 	}
 
 	bc := c.Copy()

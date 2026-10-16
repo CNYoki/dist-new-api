@@ -918,7 +918,7 @@ func checkResponsesWSModelAccess(c *gin.Context, modelName string) *types.NewAPI
 	if !ok {
 		tokenModelLimit = map[string]bool{}
 	}
-	if !middleware.TokenModelLimitAllows(tokenModelLimit, modelName) {
+	if !service.TokenModelLimitAllows(tokenModelLimit, modelName) {
 		return types.NewErrorWithStatusCode(fmt.Errorf("token is not allowed to use model %s", modelName), types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry())
 	}
 	return nil

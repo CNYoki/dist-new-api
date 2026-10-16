@@ -102,7 +102,7 @@ func setBatchBillingTestPricing(t *testing.T) {
 	})
 	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"batch-test-model":2}`))
 	require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(`{"batch-test-model":4}`))
-	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"batch":0.5}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"svip":1,"batch":0.5}`))
 	require.NoError(t, types.LoadFromJsonString(specialUsable, `{"restricted":{"-:batch":"remove"}}`))
 }
 
@@ -125,7 +125,19 @@ func TestBatchBilling(t *testing.T) {
 			require.NoError(t, db.Create(&batchKey).Error)
 			require.NoError(t, db.Create(&defaultKey).Error)
 			adminToken, _ := createScopedAccessToken(t, admin.Id, 0, "batch_billing:write")
+			// The customer's default group serves these models; svip is not
+			// usable by the customer, so its model is neither listed nor billable.
+			channelId := int(time.Now().UnixNano() % 1_000_000_000)
+			for _, ability := range []model.Ability{
+				{Group: "default", Model: "batch-test-model", ChannelId: channelId, Enabled: true},
+				{Group: "default", Model: "unpriced-model", ChannelId: channelId, Enabled: true},
+				{Group: "default", Model: "other-model", ChannelId: channelId, Enabled: true},
+				{Group: "svip", Model: "svip-only-model", ChannelId: channelId, Enabled: true},
+			} {
+				require.NoError(t, db.Create(&ability).Error)
+			}
 			t.Cleanup(func() {
+				require.NoError(t, db.Where("channel_id = ?", channelId).Delete(&model.Ability{}).Error)
 				userIds := []int{admin.Id, customer.Id, restricted.Id}
 				require.NoError(t, db.Where("user_id IN ?", userIds).Delete(&model.BatchBillingRecord{}).Error)
 				require.NoError(t, db.Where("user_id IN ?", userIds).Delete(&model.Log{}).Error)
@@ -138,7 +150,8 @@ func TestBatchBilling(t *testing.T) {
 			router := gin.New()
 			router.Use(middleware.RequestId())
 			router.POST("/api/batch/billing", middleware.AdminAuth(), ChargeBatchBilling)
-			router.GET("/v1/models", middleware.TokenAuth(), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+			router.GET("/v1/models", middleware.TokenAuth(), func(c *gin.Context) { ListModels(c, constant.ChannelTypeOpenAI) })
+			router.POST("/v1/chat/completions", middleware.TokenAuth(), func(c *gin.Context) { c.Status(http.StatusNoContent) })
 			charge := func(body string) (int, batchBillingTestResponse) {
 				response := httptest.NewRecorder()
 				request := httptest.NewRequest(http.MethodPost, "/api/batch/billing", bytes.NewBufferString(body))
@@ -156,13 +169,38 @@ func TestBatchBilling(t *testing.T) {
 				return user.Quota, token.RemainQuota
 			}
 
-			t.Run("batch keys cannot relay", func(t *testing.T) {
-				for key, status := range map[string]int{batchKey.Key: http.StatusForbidden, defaultKey.Key: http.StatusNoContent} {
+			t.Run("batch keys list their billable models but cannot relay", func(t *testing.T) {
+				listModels := func(key string) (int, []string) {
 					response := httptest.NewRecorder()
 					request := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
 					request.Header.Set("Authorization", "Bearer sk-"+key)
 					router.ServeHTTP(response, request)
-					assert.Equal(t, status, response.Code, response.Body.String())
+					var result struct {
+						Data []struct {
+							Id string `json:"id"`
+						} `json:"data"`
+					}
+					require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result), response.Body.String())
+					ids := make([]string, 0, len(result.Data))
+					for _, item := range result.Data {
+						ids = append(ids, item.Id)
+					}
+					return response.Code, ids
+				}
+				// Unpriced models are hidden from the list as for any other key.
+				status, ids := listModels(batchKey.Key)
+				assert.Equal(t, http.StatusOK, status)
+				assert.Equal(t, []string{"batch-test-model"}, ids)
+				status, ids = listModels(defaultKey.Key)
+				assert.Equal(t, http.StatusOK, status)
+				assert.Equal(t, []string{"batch-test-model"}, ids)
+
+				for key, want := range map[string]int{batchKey.Key: http.StatusForbidden, defaultKey.Key: http.StatusNoContent} {
+					response := httptest.NewRecorder()
+					request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewBufferString(`{}`))
+					request.Header.Set("Authorization", "Bearer sk-"+key)
+					router.ServeHTTP(response, request)
+					assert.Equal(t, want, response.Code, response.Body.String())
 				}
 			})
 
@@ -271,6 +309,8 @@ func TestBatchBilling(t *testing.T) {
 					{`{"key":"` + defaultKey.Key + `","request_id":"job-5","model_name":"batch-test-model","quota":1}`, http.StatusForbidden, "key_not_batch"},
 					{`{"key":"missing","request_id":"job-6","model_name":"batch-test-model","quota":1}`, http.StatusNotFound, "invalid_key"},
 					{`{"key":"` + batchKey.Key + `","request_id":"job-7","model_name":"unpriced-model","prompt_tokens":10}`, http.StatusBadRequest, "model_price_error"},
+					{`{"key":"` + batchKey.Key + `","request_id":"job-13","model_name":"svip-only-model","quota":1}`, http.StatusForbidden, "model_unavailable"},
+					{`{"key":"` + batchKey.Key + `","request_id":"job-14","model_name":"no-channel-model","quota":1}`, http.StatusForbidden, "model_unavailable"},
 					{`{"key":"` + batchKey.Key + `","request_id":"job-8","model_name":"batch-test-model","quota":1,"prompt_tokens":10}`, http.StatusBadRequest, "invalid_request"},
 					{`{"key":"` + batchKey.Key + `","request_id":"job-9","model_name":"batch-test-model","prompt_tokens":-1,"completion_tokens":5}`, http.StatusBadRequest, "invalid_request"},
 					{`{"key":"` + batchKey.Key + `","request_id":"job-10","model_name":"batch-test-model","quota":2147483648}`, http.StatusBadRequest, "quota_out_of_range"},

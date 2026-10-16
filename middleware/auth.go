@@ -525,6 +525,13 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 	}
 }
 
+// batchModelListRoutes are the model list routes open to batch group keys.
+var batchModelListRoutes = map[string]bool{
+	"/v1/models":            true,
+	"/v1beta/models":        true,
+	"/v1beta/openai/models": true,
+}
+
 func TokenAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		// 先检测是否为ws
@@ -621,11 +628,14 @@ func TokenAuth() func(c *gin.Context) {
 
 		userGroup := userCache.Group
 		tokenGroup := token.Group
-		if tokenGroup == constant.BatchGroup || tokenGroup == "" && userGroup == constant.BatchGroup {
+		// Batch keys may only list the models they can be charged for; every
+		// other relay route rejects them. The list reads the owner's own groups.
+		batchModelList := tokenGroup == constant.BatchGroup && c.Request.Method == http.MethodGet && batchModelListRoutes[c.FullPath()]
+		if !batchModelList && (tokenGroup == constant.BatchGroup || tokenGroup == "" && userGroup == constant.BatchGroup) {
 			abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgAuthTokenBatchGroupRelay, map[string]any{"Group": constant.BatchGroup}), types.ErrorCodeAccessDenied)
 			return
 		}
-		if tokenGroup != "" {
+		if tokenGroup != "" && !batchModelList {
 			// check common.UserUsableGroups[userGroup]
 			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgAuthTokenGroupForbidden, map[string]any{"Group": tokenGroup}))

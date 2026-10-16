@@ -3626,6 +3626,7 @@
     "Maximum number of channels tested at the same time (1-32)": "Số kênh tối đa được kiểm tra cùng lúc (1–32)",
     "Maximum number of tokens each user can create. Default 1000. Setting too large may affect performance.": "Số lượng token tối đa mỗi người dùng có thể tạo. Mặc định là 1000. Đặt quá lớn có thể ảnh hưởng đến hiệu suất.",
     "Maximum number of tokens in the response": "Số token tối đa trong phản hồi",
+    "Model {{model}} is not available to this user": "Mô hình {{model}} không khả dụng cho người dùng này",
     "Model fixed price {{model_price}}, group ratio {{group_ratio}}, action {{action}}": "Giá cố định của mô hình {{model_price}}, hệ số nhóm {{group_ratio}}, thao tác {{action}}",
     "Model fixed price {{model_price}}, group ratio {{group_ratio}}, action {{action}}, ID {{id}}": "Giá cố định của mô hình {{model_price}}, hệ số nhóm {{group_ratio}}, thao tác {{action}}, ID {{id}}",
     "Maximum quota amount awarded for check-in": "Số lượng hạn ngạch tối đa được trao cho điểm danh",
