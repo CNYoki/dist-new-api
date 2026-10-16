@@ -72,9 +72,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (labels)
+      - name: Extract metadata (labels & annotations)
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        env:
+          # Provenance and SBOM make every pushed tag an image index. GitHub
+          # links the package to this repository through the index's
+          # org.opencontainers.image.source annotation, not the image label.
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
         with:
           images: ${{ env.IMAGE }}
 
@@ -89,6 +94,7 @@ jobs:
             ${{ env.IMAGE }}:${{ env.TAG }}-${{ matrix.arch }}
             ${{ env.IMAGE }}:latest-${{ matrix.arch }}
           labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: mode=max
@@ -137,6 +143,8 @@ jobs:
         run: |
           docker buildx imagetools create \
             -t ${{ env.IMAGE }}:${TAG} \
+            --annotation "index:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            --annotation "index:org.opencontainers.image.revision=${{ github.sha }}" \
             ${{ env.IMAGE }}:${TAG}-amd64 \
             ${{ env.IMAGE }}:${TAG}-arm64
 
@@ -144,6 +152,8 @@ jobs:
         run: |
           docker buildx imagetools create \
             -t ${{ env.IMAGE }}:latest \
+            --annotation "index:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            --annotation "index:org.opencontainers.image.revision=${{ github.sha }}" \
             ${{ env.IMAGE }}:latest-amd64 \
             ${{ env.IMAGE }}:latest-arm64
 
